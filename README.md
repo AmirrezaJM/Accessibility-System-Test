@@ -1,4 +1,4 @@
-# 🔍 Website Auditor - Chrome DevTools Extension
+# 🔍 Accessibility System Test - Chrome DevTools Extension
 
 A comprehensive website analysis tool similar to Lighthouse, built with React. Analyze any website's performance, accessibility, SEO, and best practices directly from Chrome DevTools.
 
