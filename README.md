@@ -4,14 +4,7 @@ A comprehensive website analysis tool similar to Lighthouse, built with React. A
 
 ## ✨ Features
 
-### 📊 **Four Core Audits**
-
-1. **⚡ Performance Analysis**
-   - Page load time
-   - DOM content loaded time
-   - Total resources count
-   - Total page size
-   - Resource breakdown (images, scripts, stylesheets)
+### 📊 **Core Audits**
 
 2. **♿ Accessibility Checks**
    - Images without alt text
@@ -68,19 +61,13 @@ cp public/manifest.json public/devtools.html public/devtools.js dist/
 
 1. Open any website in Chrome
 2. Press **F12** to open DevTools
-3. Look for the **"Website Auditor"** tab
-4. Click **"Run Audit"** button
+3. Look for the **"ASIA"** tab
+4. Click **"Run Code"** button
 5. Wait 2-3 seconds for analysis
 6. Review your scores and detailed metrics!
 
 ## 📈 What Gets Analyzed
 
-### Performance Metrics
-- Page Load Time (target: < 3000ms)
-- DOM Content Loaded
-- Total Resources (target: < 100)
-- Total Size (target: < 5MB)
-- Resource Breakdown
 
 ### Accessibility Issues
 - Alt text for images
