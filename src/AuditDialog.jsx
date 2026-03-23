@@ -91,6 +91,14 @@ function AuditDialog({ isOpen, onClose, analyzing, auditType }) {
             'Checking CTA clarity...',
             'Evaluating error recovery...',
             'Generating report...'
+        ],
+        bestpractices: [
+            'Measuring cognitive load...',
+            'Detecting distractions & animations...',
+            'Analyzing content structure...',
+            'Evaluating task clarity & forms...',
+            'Checking focus management...',
+            'Generating report...'
         ]
     };
 
@@ -148,7 +156,8 @@ function AuditDialog({ isOpen, onClose, analyzing, auditType }) {
             cognitive: 'Analyzing Cognitive Accessibility',
             adhd: 'Analyzing Focus & Attention',
             autism: 'Analyzing Sensory Accessibility',
-            anxiety: 'Analyzing Stress-Free Design'
+            anxiety: 'Analyzing Stress-Free Design',
+            bestpractices: 'Analyzing Best Practices (ADHD Lens)'
         };
         return titles[auditType] || 'Analyzing Accessibility...';
     };

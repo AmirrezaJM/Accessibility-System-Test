@@ -91,6 +91,14 @@ const ACCESSIBILITY_PROFILES = {
     category: 'cognitive',
     description: 'Supports people who may be overwhelmed by time pressure or complex UI.',
     checks: ['timers', 'pressure', 'clarity', 'errorRecovery']
+  },
+  // Best Practices
+  bestpractices: {
+    id: 'bestpractices',
+    name: 'Best Practices',
+    category: 'bestpractices',
+    description: 'Evaluates page usability through an ADHD-informed lens: cognitive load, distraction management, content structure, and task clarity.',
+    checks: ['cognitiveLoad', 'distractionFree', 'contentStructure', 'taskClarity']
   }
 };
 
@@ -136,7 +144,8 @@ function App() {
       cognitive: analyzeCognitive,
       adhd: analyzeADHD,
       autism: analyzeAutism,
-      anxiety: analyzeAnxiety
+      anxiety: analyzeAnxiety,
+      bestpractices: analyzeBestPractices
     };
 
     const analyzeFunc = analysisFunctions[auditType];
@@ -1350,6 +1359,437 @@ function App() {
         return results;
       })()
     `, handleAnalysisResult('anxiety'));
+  };
+
+  // Best Practices Analysis (ADHD-informed)
+  const analyzeBestPractices = () => {
+    chrome.devtools.inspectedWindow.eval(`
+      (function() {
+        const results = {
+          metrics: [],
+          diagnostics: [],
+          scores: { cognitiveLoad: 0, distractionFree: 0, contentStructure: 0, taskClarity: 0 }
+        };
+
+        // ── 1. Cognitive Load ──
+        // DOM complexity: too many elements overwhelm scanning
+        const totalElements = document.querySelectorAll('*').length;
+        results.metrics.push({
+          name: 'DOM Elements',
+          value: totalElements,
+          status: totalElements <= 800 ? 'pass' : totalElements <= 1500 ? 'warning' : 'error'
+        });
+
+        // Count competing interactive elements visible at once
+        const interactiveEls = document.querySelectorAll('a, button, input, select, textarea, [role="button"], [role="link"]');
+        const visibleInteractive = Array.from(interactiveEls).filter(el => {
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        });
+
+        results.metrics.push({
+          name: 'Interactive Elements',
+          value: visibleInteractive.length,
+          status: visibleInteractive.length <= 30 ? 'pass' : visibleInteractive.length <= 60 ? 'warning' : 'error'
+        });
+
+        let cognitiveScore = 100;
+        if (totalElements > 1500) {
+          results.diagnostics.push({
+            type: 'error',
+            title: 'Page is very complex',
+            detail: totalElements + ' DOM elements — high cognitive load for ADHD users who scan pages quickly'
+          });
+          cognitiveScore -= 30;
+        } else if (totalElements > 800) {
+          results.diagnostics.push({
+            type: 'warning',
+            title: 'Moderately complex page',
+            detail: totalElements + ' DOM elements — consider simplifying layout'
+          });
+          cognitiveScore -= 15;
+        }
+
+        if (visibleInteractive.length > 60) {
+          results.diagnostics.push({
+            type: 'error',
+            title: 'Too many choices',
+            detail: visibleInteractive.length + ' clickable elements cause decision fatigue — ADHD users struggle with choice overload'
+          });
+          cognitiveScore -= 30;
+        } else if (visibleInteractive.length > 30) {
+          results.diagnostics.push({
+            type: 'warning',
+            title: 'Many interactive elements',
+            detail: 'Consider grouping or reducing visible actions per section'
+          });
+          cognitiveScore -= 10;
+        }
+
+        // Nesting depth: deeply nested content is hard to track mentally
+        let maxDepth = 0;
+        function measureDepth(el, depth) {
+          if (depth > maxDepth) maxDepth = depth;
+          if (depth < 15) {
+            for (let i = 0; i < el.children.length; i++) {
+              measureDepth(el.children[i], depth + 1);
+            }
+          }
+        }
+        measureDepth(document.body, 0);
+
+        results.metrics.push({
+          name: 'Max Nesting Depth',
+          value: maxDepth,
+          status: maxDepth <= 10 ? 'pass' : maxDepth <= 15 ? 'warning' : 'error'
+        });
+
+        if (maxDepth > 15) {
+          results.diagnostics.push({
+            type: 'warning',
+            title: 'Deeply nested layout',
+            detail: 'Nesting depth of ' + maxDepth + ' — flatter layouts are easier to scan'
+          });
+          cognitiveScore -= 10;
+        }
+
+        results.scores.cognitiveLoad = Math.max(0, cognitiveScore);
+
+        // ── 2. Distraction-Free ──
+        let distractionScore = 100;
+
+        // Auto-playing media
+        const autoplayMedia = document.querySelectorAll('video[autoplay], audio[autoplay]');
+        results.metrics.push({
+          name: 'Auto-play Media',
+          value: autoplayMedia.length,
+          status: autoplayMedia.length === 0 ? 'pass' : 'error'
+        });
+
+        if (autoplayMedia.length > 0) {
+          results.diagnostics.push({
+            type: 'error',
+            title: 'Auto-playing media detected',
+            detail: autoplayMedia.length + ' element(s) — auto-play hijacks ADHD attention and makes it hard to refocus on the task'
+          });
+          distractionScore -= 30;
+        }
+
+        // Animations
+        let animationCount = 0;
+        const allEls = document.querySelectorAll('*');
+        allEls.forEach(el => {
+          const style = window.getComputedStyle(el);
+          const anim = style.animation || style.webkitAnimation;
+          if (anim && anim !== 'none' && !anim.includes('0s')) animationCount++;
+        });
+
+        results.metrics.push({
+          name: 'Animations',
+          value: animationCount,
+          status: animationCount <= 2 ? 'pass' : animationCount <= 6 ? 'warning' : 'error'
+        });
+
+        if (animationCount > 6) {
+          results.diagnostics.push({
+            type: 'error',
+            title: 'Excessive animations',
+            detail: animationCount + ' animated elements — peripheral motion pulls ADHD attention away from content'
+          });
+          distractionScore -= 25;
+        } else if (animationCount > 2) {
+          results.diagnostics.push({
+            type: 'warning',
+            title: 'Multiple animations',
+            detail: 'Consider respecting prefers-reduced-motion and limiting motion'
+          });
+          distractionScore -= 10;
+        }
+
+        // prefers-reduced-motion support
+        let respectsMotionPref = false;
+        Array.from(document.styleSheets).forEach(sheet => {
+          try {
+            Array.from(sheet.cssRules || []).forEach(rule => {
+              if (rule.conditionText && rule.conditionText.includes('prefers-reduced-motion')) {
+                respectsMotionPref = true;
+              }
+            });
+          } catch(e) {}
+        });
+
+        results.metrics.push({
+          name: 'Reduced Motion Support',
+          value: respectsMotionPref ? 'Yes' : 'No',
+          status: respectsMotionPref ? 'pass' : (animationCount > 0 ? 'warning' : 'pass')
+        });
+
+        if (!respectsMotionPref && animationCount > 0) {
+          results.diagnostics.push({
+            type: 'warning',
+            title: 'No prefers-reduced-motion support',
+            detail: 'Users who need fewer distractions cannot opt out of animations'
+          });
+          distractionScore -= 10;
+        }
+
+        // Modals / overlays on load
+        const modals = document.querySelectorAll('[role="dialog"], [aria-modal="true"], .modal, .popup, .overlay');
+        const visibleModals = Array.from(modals).filter(el => {
+          const style = window.getComputedStyle(el);
+          return style.display !== 'none' && style.visibility !== 'hidden';
+        });
+
+        if (visibleModals.length > 0) {
+          results.diagnostics.push({
+            type: 'warning',
+            title: 'Modal/overlay visible on load',
+            detail: 'Pop-ups interrupt focus — ADHD users may lose context of what they were doing'
+          });
+          distractionScore -= 15;
+        }
+
+        // Animated GIFs
+        const gifs = document.querySelectorAll('img[src$=".gif"], img[src*=".gif?"]');
+        if (gifs.length > 0) {
+          results.metrics.push({
+            name: 'Animated GIFs',
+            value: gifs.length,
+            status: gifs.length <= 1 ? 'warning' : 'error'
+          });
+          results.diagnostics.push({
+            type: 'warning',
+            title: 'Animated GIFs on page',
+            detail: gifs.length + ' GIF(s) — looping images constantly pull attention'
+          });
+          distractionScore -= gifs.length * 5;
+        }
+
+        results.scores.distractionFree = Math.max(0, distractionScore);
+
+        // ── 3. Content Structure ──
+        let structureScore = 100;
+
+        // Heading hierarchy
+        const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+        const h1Count = document.querySelectorAll('h1').length;
+        results.metrics.push({
+          name: 'Headings',
+          value: headings.length,
+          status: headings.length >= 2 ? 'pass' : headings.length > 0 ? 'warning' : 'error'
+        });
+
+        if (headings.length === 0) {
+          results.diagnostics.push({
+            type: 'error',
+            title: 'No headings found',
+            detail: 'Headings let ADHD users quickly scan and jump to relevant sections instead of reading everything'
+          });
+          structureScore -= 25;
+        }
+
+        if (h1Count === 0) {
+          results.diagnostics.push({
+            type: 'warning',
+            title: 'Missing H1',
+            detail: 'A clear page title helps users orient themselves'
+          });
+          structureScore -= 10;
+        } else if (h1Count > 1) {
+          results.diagnostics.push({
+            type: 'warning',
+            title: 'Multiple H1 headings (' + h1Count + ')',
+            detail: 'Competing titles confuse page hierarchy'
+          });
+          structureScore -= 10;
+        }
+
+        // Long paragraphs (wall of text)
+        const paragraphs = document.querySelectorAll('p');
+        let longParas = 0;
+        let veryLongParas = 0;
+        paragraphs.forEach(p => {
+          const words = p.textContent.split(/\\s+/).filter(w => w.length > 0).length;
+          if (words > 150) veryLongParas++;
+          else if (words > 80) longParas++;
+        });
+
+        results.metrics.push({
+          name: 'Long Paragraphs (>80 words)',
+          value: longParas + veryLongParas,
+          status: (longParas + veryLongParas) === 0 ? 'pass' : veryLongParas > 0 ? 'error' : 'warning'
+        });
+
+        if (veryLongParas > 0) {
+          results.diagnostics.push({
+            type: 'error',
+            title: 'Wall-of-text paragraphs',
+            detail: veryLongParas + ' paragraph(s) over 150 words — ADHD users lose their place in dense text and skip it entirely'
+          });
+          structureScore -= veryLongParas * 10;
+        } else if (longParas > 0) {
+          results.diagnostics.push({
+            type: 'warning',
+            title: 'Some long paragraphs',
+            detail: longParas + ' paragraph(s) over 80 words — break into shorter chunks or use bullet points'
+          });
+          structureScore -= longParas * 5;
+        }
+
+        // Use of lists (good for scannability)
+        const lists = document.querySelectorAll('ul, ol');
+        results.metrics.push({
+          name: 'Lists Used',
+          value: lists.length,
+          status: lists.length > 0 ? 'pass' : 'info'
+        });
+
+        // Descriptive link text
+        const links = document.querySelectorAll('a');
+        let vagueLinkCount = 0;
+        const vagueTexts = ['click here', 'here', 'read more', 'more', 'link', 'this'];
+        links.forEach(link => {
+          const text = link.textContent.trim().toLowerCase();
+          if (vagueTexts.includes(text)) vagueLinkCount++;
+        });
+
+        results.metrics.push({
+          name: 'Vague Link Text',
+          value: vagueLinkCount,
+          status: vagueLinkCount === 0 ? 'pass' : vagueLinkCount > 3 ? 'error' : 'warning'
+        });
+
+        if (vagueLinkCount > 3) {
+          results.diagnostics.push({
+            type: 'error',
+            title: 'Too many vague links',
+            detail: vagueLinkCount + ' links say "click here" or "read more" — unclear labels waste ADHD attention on figuring out where links go'
+          });
+          structureScore -= 15;
+        } else if (vagueLinkCount > 0) {
+          results.diagnostics.push({
+            type: 'warning',
+            title: 'Some vague link text',
+            detail: 'Use descriptive text so users know the destination at a glance'
+          });
+          structureScore -= 5;
+        }
+
+        results.scores.contentStructure = Math.max(0, structureScore);
+
+        // ── 4. Task Clarity ──
+        let taskScore = 100;
+
+        // Form usability
+        const inputs = document.querySelectorAll('input, select, textarea');
+        let unlabeledInputs = 0;
+        inputs.forEach(input => {
+          const hasLabel = (input.id && document.querySelector('label[for="' + input.id + '"]')) ||
+                           input.getAttribute('aria-label') ||
+                           input.getAttribute('aria-labelledby') ||
+                           input.getAttribute('placeholder');
+          if (!hasLabel) unlabeledInputs++;
+        });
+
+        results.metrics.push({
+          name: 'Unlabeled Inputs',
+          value: unlabeledInputs,
+          status: unlabeledInputs === 0 ? 'pass' : 'error'
+        });
+
+        if (unlabeledInputs > 0) {
+          results.diagnostics.push({
+            type: 'error',
+            title: 'Inputs without labels',
+            detail: unlabeledInputs + ' field(s) — ADHD users need clear labels because they forget what a field is for mid-typing'
+          });
+          taskScore -= unlabeledInputs * 10;
+        }
+
+        // Too many form fields visible at once
+        const totalInputs = inputs.length;
+        results.metrics.push({
+          name: 'Form Fields',
+          value: totalInputs,
+          status: totalInputs <= 8 ? 'pass' : totalInputs <= 15 ? 'warning' : 'error'
+        });
+
+        if (totalInputs > 15) {
+          results.diagnostics.push({
+            type: 'error',
+            title: 'Form is too long',
+            detail: totalInputs + ' fields — break into steps or sections to prevent ADHD users from abandoning the task'
+          });
+          taskScore -= 20;
+        } else if (totalInputs > 8) {
+          results.diagnostics.push({
+            type: 'warning',
+            title: 'Many form fields',
+            detail: 'Consider progressive disclosure or multi-step forms'
+          });
+          taskScore -= 10;
+        }
+
+        // Button clarity
+        const buttons = document.querySelectorAll('button, [role="button"]');
+        let unclearButtons = 0;
+        buttons.forEach(btn => {
+          const text = (btn.textContent || '').trim();
+          const ariaLabel = btn.getAttribute('aria-label') || '';
+          if (text.length < 2 && ariaLabel.length < 2) unclearButtons++;
+        });
+
+        results.metrics.push({
+          name: 'Unclear Buttons',
+          value: unclearButtons,
+          status: unclearButtons === 0 ? 'pass' : 'error'
+        });
+
+        if (unclearButtons > 0) {
+          results.diagnostics.push({
+            type: 'error',
+            title: 'Buttons without clear labels',
+            detail: unclearButtons + ' button(s) — ambiguous actions increase hesitation and impulsive mis-clicks'
+          });
+          taskScore -= unclearButtons * 10;
+        }
+
+        // Check for visible focus styles (important for task tracking)
+        let hasFocusStyles = false;
+        Array.from(document.styleSheets).forEach(sheet => {
+          try {
+            Array.from(sheet.cssRules || []).forEach(rule => {
+              if (rule.selectorText && (rule.selectorText.includes(':focus') || rule.selectorText.includes(':focus-visible'))) {
+                hasFocusStyles = true;
+              }
+            });
+          } catch(e) {}
+        });
+
+        results.metrics.push({
+          name: 'Focus Styles',
+          value: hasFocusStyles ? 'Present' : 'Missing',
+          status: hasFocusStyles ? 'pass' : 'error'
+        });
+
+        if (!hasFocusStyles) {
+          results.diagnostics.push({
+            type: 'error',
+            title: 'No focus indicators',
+            detail: 'Without visible focus, ADHD users lose track of where they are on the page'
+          });
+          taskScore -= 15;
+        }
+
+        results.scores.taskClarity = Math.max(0, taskScore);
+
+        // ── Overall ──
+        results.overallScore = Math.round(
+          (results.scores.cognitiveLoad + results.scores.distractionFree + results.scores.contentStructure + results.scores.taskClarity) / 4
+        );
+        return results;
+      })()
+    `, handleAnalysisResult('bestpractices'));
   };
 
   // Common result handler
